@@ -44,7 +44,7 @@ export default function EarthquakeMap({ earthquakes, selectedId, onSelect }: Ear
   const selected = earthquakes.find((earthquake) => earthquake.id === selectedId) ?? null;
 
   return (
-    <div className="relative h-full min-h-[500px] w-full overflow-hidden rounded-2xl sm:min-h-[620px]">
+    <div className="relative h-[500px] w-full overflow-hidden rounded-2xl sm:h-[620px]">
       <MapContainer
         center={[12.8797, 121.774]}
         zoom={5}
@@ -56,7 +56,7 @@ export default function EarthquakeMap({ earthquakes, selectedId, onSelect }: Ear
         ]}
         preferCanvas
         scrollWheelZoom
-        className="z-0"
+        className="z-0 h-full w-full"
       >
         <TileLayer
           className="map-tiles"
