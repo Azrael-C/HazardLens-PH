@@ -1,25 +1,26 @@
-# HazardLens PH
+## File Hierarchy
 
+```text
 HazardLens-PH/
 ├── app/
 │   ├── api/
 │   │   ├── earthquakes/
 │   │   │   └── route.ts          # Cached USGS earthquake API proxy
 │   │   └── hazards/
-│   │       └── route.ts          # Weather, flood, radar, NASA, and search API proxy
+│   │       └── route.ts          # Weather, flood, radar, NASA, and search API
 │   ├── earthquakes/
-│   │   └── page.tsx              # Earthquake Monitor route
+│   │   └── page.tsx              # Earthquake Monitor page
 │   ├── explorer/
-│   │   └── page.tsx              # Flood Explorer route
+│   │   └── page.tsx              # Flood Explorer page
 │   ├── methodology/
-│   │   └── page.tsx              # About, sources, scoring, and limitations
+│   │   └── page.tsx              # About, sources, and limitations
 │   ├── offline/
 │   │   └── page.tsx              # Offline safety information
-│   ├── error.tsx                 # Route-level error recovery page
-│   ├── globals.css               # Global theme and Leaflet styles
-│   ├── layout.tsx                # Shared layout, metadata, header, and PWA setup
-│   ├── manifest.ts               # Progressive Web App manifest
-│   └── page.tsx                  # Dashboard route
+│   ├── error.tsx                 # Route-level error recovery
+│   ├── globals.css               # Global and Leaflet styles
+│   ├── layout.tsx                # Shared layout, metadata, and header
+│   ├── manifest.ts               # PWA configuration
+│   └── page.tsx                  # Main Dashboard page
 │
 ├── components/
 │   ├── ui/                       # Reusable interface components
@@ -32,43 +33,44 @@ HazardLens-PH/
 │   │   ├── switch.tsx
 │   │   ├── table.tsx
 │   │   └── tabs.tsx
-│   ├── comparison-lab.tsx        # Compares hazard data between two locations
-│   ├── data-charts.tsx           # Rainfall and river-discharge charts
-│   ├── earthquake-map.tsx        # Earthquake markers, tooltips, and popups
-│   ├── earthquake-workspace.tsx  # Earthquake state, filters, and records
-│   ├── flood-map.tsx             # Interactive flood and weather map
+│   ├── comparison-lab.tsx        # Two-location comparison
+│   ├── data-charts.tsx           # Rainfall and discharge charts
+│   ├── earthquake-map.tsx        # Earthquake Leaflet map
+│   ├── earthquake-workspace.tsx  # Earthquake state and filters
+│   ├── flood-map.tsx             # Flood and weather map
 │   ├── flood-workspace.tsx       # Main flood dashboard controller
-│   ├── location-search.tsx       # Debounced Philippine location search
-│   ├── module-error-boundary.tsx # Isolates failures in maps and charts
+│   ├── location-search.tsx       # Debounced location search
+│   ├── module-error-boundary.tsx # Isolates component failures
 │   ├── pwa-register.tsx          # Registers the service worker
 │   └── site-header.tsx           # Desktop and mobile navigation
 │
 ├── data/
-│   └── fallback-hazards.json     # Demonstration fallback hazard data
+│   └── fallback-hazards.json     # Labeled demonstration fallback data
 │
 ├── hooks/
-│   └── use-mobile.ts             # Detects mobile screen sizes
+│   └── use-mobile.ts             # Mobile-screen detection hook
 │
 ├── lib/
-│   ├── earthquakes.ts            # Earthquake types, filters, and calculations
-│   ├── hazardlens.ts             # Hazard APIs, caching, analysis, and scoring
-│   └── utils.ts                  # Shared class-name utility
+│   ├── earthquakes.ts            # Earthquake API and calculations
+│   ├── hazardlens.ts             # Hazard APIs, caching, and analysis
+│   └── utils.ts                  # Shared utility functions
 │
 ├── public/
-│   ├── favicon.png               # Website favicon
+│   ├── favicon.png               # Browser favicon
 │   ├── favicon.svg               # Alternative favicon
-│   ├── icon-192.png              # PWA application icon
-│   ├── icon-512.png              # Large PWA application icon
-│   └── sw.js                     # Offline and runtime caching service worker
+│   ├── icon-192.png              # Small PWA icon
+│   ├── icon-512.png              # Large PWA icon
+│   └── sw.js                     # Offline service worker
 │
 ├── vendor/
 │   ├── shadcn-tailwind-4.13.0.css
 │   └── shadcn-tailwind-4.13.0.LICENSE.md
 │
 ├── components.json               # UI component configuration
-├── eslint.config.mjs             # Code-quality rules
+├── eslint.config.mjs             # ESLint configuration
 ├── next.config.ts                # Next.js configuration
-├── package.json                  # Dependencies and project commands
-├── postcss.config.mjs            # Tailwind/PostCSS configuration
+├── package.json                  # Dependencies and commands
+├── postcss.config.mjs            # PostCSS configuration
 ├── tsconfig.json                 # TypeScript configuration
 └── README.md                     # Project documentation
+```
