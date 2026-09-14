@@ -27,6 +27,7 @@ import {
   markerRadius,
   matchesDepth,
 } from "@/lib/earthquakes";
+import { ModuleErrorBoundary } from "@/components/module-error-boundary";
 
 const EarthquakeMap = dynamic(() => import("@/components/earthquake-map"), {
   ssr: false,
@@ -258,7 +259,9 @@ export function EarthquakeWorkspace() {
             </div>
           </div>
         ) : (
-          <EarthquakeMap earthquakes={earthquakes} selectedId={effectiveSelectedId} onSelect={(earthquake) => setSelectedId(earthquake.id)} />
+          <ModuleErrorBoundary title="Earthquake map">
+            <EarthquakeMap earthquakes={earthquakes} selectedId={effectiveSelectedId} onSelect={(earthquake) => setSelectedId(earthquake.id)} />
+          </ModuleErrorBoundary>
         )}
       </section>
 

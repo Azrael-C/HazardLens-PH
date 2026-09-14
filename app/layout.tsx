@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
+import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
   title: {
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
     shortcut: "/favicon.png",
     apple: "/favicon.png",
   },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({
@@ -24,6 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <PwaRegister />
         <SiteHeader />
         {children}
       </body>

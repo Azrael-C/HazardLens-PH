@@ -32,6 +32,10 @@ export type EarthquakeResponse = {
     status: number;
   };
   features: EarthquakeFeature[];
+  hazardlens?: {
+    source: "provider" | "local-cache";
+    servedAt: string;
+  };
 };
 
 export type DepthFilter = "all" | "shallow" | "intermediate" | "deep";
@@ -76,28 +80,8 @@ export async function getEarthquakes(
   minMagnitude: number,
   signal?: AbortSignal,
 ) {
-  const currentYear = new Date().getUTCFullYear();
-  const start = `${year}-01-01T00:00:00Z`;
-  const end =
-    year === currentYear
-      ? new Date().toISOString()
-      : `${year + 1}-01-01T00:00:00Z`;
-  const url = new URL("https://earthquake.usgs.gov/fdsnws/event/1/query");
-
-  url.searchParams.set("format", "geojson");
-  url.searchParams.set("starttime", start);
-  url.searchParams.set("endtime", end);
-  url.searchParams.set("minlatitude", "3");
-  url.searchParams.set("maxlatitude", "23");
-  url.searchParams.set("minlongitude", "115");
-  url.searchParams.set("maxlongitude", "130");
-  url.searchParams.set("minmagnitude", String(minMagnitude));
-  url.searchParams.set("eventtype", "earthquake");
-  url.searchParams.set("orderby", "time");
-  url.searchParams.set("limit", "5000");
-
-  const response = await fetch(url.toString(), {
-    cache: "no-store",
+  const search = new URLSearchParams({ year: String(year), minMagnitude: String(minMagnitude) });
+  const response = await fetch(`/api/earthquakes?${search.toString()}`, {
     headers: { Accept: "application/geo+json, application/json" },
     signal,
   });

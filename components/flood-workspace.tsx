@@ -18,11 +18,13 @@ import {
   RefreshCw,
   Route,
   Satellite,
+  SlidersHorizontal,
   Waves,
   WifiOff,
 } from "lucide-react";
 import { DataCharts } from "@/components/data-charts";
 import { LocationSearch } from "@/components/location-search";
+import { ModuleErrorBoundary } from "@/components/module-error-boundary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -149,14 +151,14 @@ function ErrorNotice({
   onRetry: () => void;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/8 p-3 text-sm text-red-100">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-300" aria-hidden="true" />
+    <div className="flex items-start gap-3 rounded-xl border border-amber-400/25 bg-amber-400/8 p-3 text-sm text-amber-50">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-300" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p>{message}</p>
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 inline-flex items-center gap-1.5 font-semibold text-red-200 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+          className="mt-2 inline-flex items-center gap-1.5 font-semibold text-amber-200 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
         >
           <RefreshCw className="size-3.5" aria-hidden="true" />
           Retry
@@ -167,12 +169,21 @@ function ErrorNotice({
 }
 
 function radarTime(frame: RadarFrame | null) {
-  if (!frame) return "Radar data unavailable";
+  if (!frame) return "Radar temporarily delayed";
   return new Intl.DateTimeFormat("en-PH", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "Asia/Manila",
   }).format(new Date(frame.time * 1000));
+}
+
+function relativeAge(value: string) {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
 }
 
 export function FloodWorkspace() {
@@ -210,6 +221,7 @@ export function FloodWorkspace() {
   const [radarPlaying, setRadarPlaying] = useState(false);
   const [radarLoading, setRadarLoading] = useState(true);
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("3d");
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
   useEffect(() => {
     const updateOnlineState = () => setOnline(navigator.onLine);
@@ -359,6 +371,12 @@ export function FloodWorkspace() {
   const tone = riskTone[displayRisk];
   const currentRadarFrame = radarFrames[radarFrameIndex] ?? null;
   const mainLoading = forecastLoading && floodLoading;
+  const statuses = [forecast?.hazardlens, flood?.hazardlens].filter(Boolean);
+  const dataStatus =
+    statuses.find((status) => status?.source === "demo") ??
+    statuses.find((status) => status?.source === "local-cache") ??
+    statuses[0];
+  const hasDelayedService = Object.values(errors).some(Boolean);
 
   function selectLocation(nextLocation: LocationOption) {
     setForecastLoading(true);
@@ -390,6 +408,12 @@ export function FloodWorkspace() {
     setMapLayersRetryVersion((value) => value + 1);
   }
 
+  function retryAll() {
+    retryData();
+    retryRadar();
+    retryMapLayers();
+  }
+
   function useCurrentLocation() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -417,7 +441,7 @@ export function FloodWorkspace() {
       {!online && (
         <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
           <WifiOff className="size-5 shrink-0 text-amber-300" aria-hidden="true" />
-          You are offline. Reconnect to refresh rainfall, river, radar, and event data.
+          You are offline. Recent saved information will remain visible when available.
         </div>
       )}
 
@@ -433,10 +457,23 @@ export function FloodWorkspace() {
           <Crosshair className="size-4 text-sky-300" aria-hidden="true" />
           Use my location
         </button>
+        <button
+          type="button"
+          onClick={() => setMobileControlsOpen((open) => !open)}
+          aria-expanded={mobileControlsOpen}
+          aria-controls="map-control-panel"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-[#102338] px-4 text-sm font-semibold text-slate-100 transition hover:border-sky-400/40 hover:bg-sky-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:hidden"
+        >
+          <SlidersHorizontal className="size-4 text-teal-300" aria-hidden="true" />
+          {mobileControlsOpen ? "Hide map controls" : "Map controls"}
+        </button>
       </section>
 
       <section className="grid items-stretch gap-4 xl:grid-cols-[280px_minmax(560px,1fr)_280px]">
-        <aside className="order-3 grid content-start gap-4 xl:order-1">
+        <aside
+          id="map-control-panel"
+          className={`${mobileControlsOpen ? "grid" : "hidden"} order-3 content-start gap-4 xl:order-1 xl:grid`}
+        >
           <article className="panel rounded-2xl p-4">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-100">
               <Layers3 className="size-5 text-sky-300" aria-hidden="true" />
@@ -545,8 +582,11 @@ export function FloodWorkspace() {
           <article className="panel rounded-2xl p-4">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-100">
               <Route className="size-5 text-sky-300" aria-hidden="true" />
-              Saved Locations
+              Quick Locations
             </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Frequently monitored Philippine locations
+            </p>
             <div className="mt-3 space-y-1.5">
               {SAVED_LOCATIONS.map((saved) => {
                 const active = saved.id === location.id;
@@ -591,9 +631,11 @@ export function FloodWorkspace() {
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <span
                 className={`size-2 rounded-full ${
-                  errors.forecast && errors.flood
-                    ? "bg-red-400"
-                    : mainLoading
+                  dataStatus?.source === "demo"
+                    ? "bg-amber-300"
+                    : dataStatus?.source === "local-cache" || hasDelayedService
+                      ? "bg-orange-300"
+                      : mainLoading
                       ? "animate-pulse bg-amber-300"
                       : "bg-emerald-400"
                 }`}
@@ -601,7 +643,11 @@ export function FloodWorkspace() {
               />
               {mainLoading
                 ? "Updating data"
-                : lastUpdated
+                : dataStatus?.source === "demo"
+                  ? "Demonstration fallback"
+                  : dataStatus?.source === "local-cache"
+                    ? `Saved ${relativeAge(dataStatus.servedAt)}`
+                    : lastUpdated
                   ? `Updated ${lastUpdated.toLocaleTimeString("en-PH", {
                       hour: "numeric",
                       minute: "2-digit",
@@ -612,22 +658,24 @@ export function FloodWorkspace() {
           </div>
 
           <div className="min-h-[430px] flex-1">
-            <FloodMap
-              location={location}
-              riskLevel={displayRisk}
-              showRadar={showRadar}
-              showRiver={showRiver}
-              showMarkers={showMarkers}
-              showNationalSnapshot={showNationalSnapshot}
-              showTrackedEvents={showTrackedEvents}
-              showSatelliteRain={showSatelliteRain}
-              nationalSnapshot={nationalSnapshot}
-              trackedEvents={trackedEvents}
-              radarHost={radarHost}
-              radarFrame={currentRadarFrame}
-              radarOpacity={radarOpacity}
-              onMapClick={selectLocation}
-            />
+            <ModuleErrorBoundary title="Interactive map">
+              <FloodMap
+                location={location}
+                riskLevel={displayRisk}
+                showRadar={showRadar}
+                showRiver={showRiver}
+                showMarkers={showMarkers}
+                showNationalSnapshot={showNationalSnapshot}
+                showTrackedEvents={showTrackedEvents}
+                showSatelliteRain={showSatelliteRain}
+                nationalSnapshot={nationalSnapshot}
+                trackedEvents={trackedEvents}
+                radarHost={radarHost}
+                radarFrame={currentRadarFrame}
+                radarOpacity={radarOpacity}
+                onMapClick={selectLocation}
+              />
+            </ModuleErrorBoundary>
           </div>
 
           <div className="mt-2 rounded-xl border border-border/80 bg-[#081827]/90 p-3">
@@ -692,7 +740,7 @@ export function FloodWorkspace() {
             <p className="mt-3 text-sm leading-6 text-slate-300">
               {hasAnyData
                 ? analysis.reasons[0]
-                : "The APIs did not provide enough values to calculate a potential level."}
+                : "Current observations are delayed. The base map and saved locations remain available."}
             </p>
 
             <div className="mt-4 grid grid-cols-2 gap-2.5">
@@ -715,7 +763,7 @@ export function FloodWorkspace() {
                 label="River trend"
                 value={
                   analysis.dischargeChange === null
-                    ? "Data unavailable"
+                    ? "Not reported"
                     : `${analysis.dischargeChange >= 0 ? "+" : ""}${analysis.dischargeChange.toFixed(1)}%`
                 }
                 loading={floodLoading}
@@ -731,37 +779,17 @@ export function FloodWorkspace() {
             </div>
           </article>
 
-          {(errors.forecast ||
-            errors.flood ||
-            errors.radar ||
-            errors.snapshot ||
-            errors.events) && (
-            <div className="grid gap-2.5">
-              {errors.forecast && (
-                <ErrorNotice message={errors.forecast} onRetry={retryData} />
-              )}
-              {errors.flood && (
-                <ErrorNotice message={errors.flood} onRetry={retryData} />
-              )}
-              {errors.radar && (
-                <ErrorNotice
-                  message={errors.radar}
-                  onRetry={retryRadar}
-                />
-              )}
-              {errors.snapshot && (
-                <ErrorNotice
-                  message={errors.snapshot}
-                  onRetry={retryMapLayers}
-                />
-              )}
-              {errors.events && (
-                <ErrorNotice
-                  message={errors.events}
-                  onRetry={retryMapLayers}
-                />
-              )}
-            </div>
+          {(hasDelayedService || dataStatus?.source === "demo" || dataStatus?.source === "local-cache") && (
+            <ErrorNotice
+              message={
+                dataStatus?.source === "demo"
+                  ? "Live provider data is delayed. Clearly labeled demonstration values are keeping the dashboard usable."
+                  : dataStatus?.source === "local-cache"
+                    ? `The latest request could not finish. Showing the last successful result saved ${relativeAge(dataStatus.servedAt)}.`
+                    : "Some live layers are delayed. Available information and the base map remain usable."
+              }
+              onRetry={retryAll}
+            />
           )}
 
           <article className="panel rounded-2xl p-4">
@@ -790,11 +818,13 @@ export function FloodWorkspace() {
       </section>
 
       <div className="mt-4">
-        <DataCharts
-          analysis={analysis}
-          timeWindow={timeWindow}
-          locationName={location.name}
-        />
+        <ModuleErrorBoundary title="Forecast charts">
+          <DataCharts
+            analysis={analysis}
+            timeWindow={timeWindow}
+            locationName={location.name}
+          />
+        </ModuleErrorBoundary>
       </div>
 
       <footer className="mt-4 flex flex-col items-start justify-between gap-2 border-t border-border/70 px-1 py-4 text-xs leading-5 text-slate-500 sm:flex-row">

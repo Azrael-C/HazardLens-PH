@@ -296,11 +296,11 @@ export default function FloodMap({
         National view
       </button>
 
-      <div className="pointer-events-none absolute bottom-8 left-3 z-[500] rounded-xl border border-border/80 bg-[#07111f]/90 p-3 shadow-xl backdrop-blur">
+      <div className="pointer-events-none absolute bottom-8 left-3 right-3 z-[500] max-w-md rounded-xl border border-border/80 bg-[#07111f]/94 p-3 shadow-xl backdrop-blur sm:right-auto">
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">
           Potential
         </p>
-        <div className="flex items-center gap-2 text-xs text-slate-300">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-slate-300">
           {[
             ["#2dd4bf", "Low"],
             ["#fb923c", "Guarded"],
@@ -318,6 +318,25 @@ export default function FloodMap({
             </span>
           ))}
         </div>
+        {showRadar && (
+          <div className="mt-3 border-t border-border/70 pt-2">
+            <div className="flex items-center justify-between text-[0.68rem] text-slate-400">
+              <span>Radar reflectivity</span>
+              <span>dBZ</span>
+            </div>
+            <div
+              className="mt-1 h-2 rounded-full"
+              style={{
+                background: "linear-gradient(90deg, #67e8f9, #22c55e, #facc15, #f97316, #ef4444, #a855f7)",
+              }}
+            />
+            <div className="mt-1 flex justify-between text-[0.62rem] text-slate-500">
+              <span>Light</span>
+              <span>Moderate</span>
+              <span>Intense</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
