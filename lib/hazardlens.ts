@@ -10,7 +10,14 @@ export type LocationOption = {
 
 export type NullableNumber = number | null;
 
+export type DataStatus = {
+  source: "provider" | "demo" | "local-cache";
+  servedAt: string;
+  message?: string;
+};
+
 export type ForecastResponse = {
+  hazardlens?: DataStatus;
   current?: {
     time?: string;
     precipitation?: NullableNumber;
@@ -29,6 +36,7 @@ export type ForecastResponse = {
 };
 
 export type FloodResponse = {
+  hazardlens?: DataStatus;
   latitude?: number;
   longitude?: number;
   daily?: {
@@ -49,6 +57,7 @@ export type RadarFrame = {
 };
 
 export type RadarResponse = {
+  hazardlens?: DataStatus;
   generated?: number;
   host?: string;
   radar?: {
@@ -115,7 +124,13 @@ export const DEFAULT_LOCATION: LocationOption = {
   country: "Philippines",
 };
 
-export const SAVED_LOCATIONS: LocationOption[] = [DEFAULT_LOCATION];
+export const SAVED_LOCATIONS: LocationOption[] = [
+  DEFAULT_LOCATION,
+  { id: "marikina", name: "Marikina", latitude: 14.6507, longitude: 121.1029, admin1: "Metro Manila", country: "Philippines" },
+  { id: "pampanga-delta", name: "Pampanga Delta", latitude: 14.933, longitude: 120.585, admin1: "Pampanga", country: "Philippines" },
+  { id: "cagayan-de-oro-preset", name: "Cagayan de Oro", latitude: 8.4542, longitude: 124.6319, admin1: "Misamis Oriental", country: "Philippines" },
+  { id: "cotabato-preset", name: "Cotabato City", latitude: 7.2047, longitude: 124.231, admin1: "Maguindanao del Norte", country: "Philippines" },
+];
 
 export const NATIONAL_SAMPLE_LOCATIONS: LocationOption[] = [
   { id: "laoag", name: "Laoag", latitude: 18.196, longitude: 120.593, admin1: "Ilocos Norte" },
@@ -141,7 +156,53 @@ export const NATIONAL_SAMPLE_LOCATIONS: LocationOption[] = [
 export const NASA_PRECIPITATION_TILES =
   "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/IMERG_Precipitation_Rate/default/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png";
 
-async function fetchJson<T>(url: string, timeoutMs = 14000): Promise<T> {
+const CLIENT_CACHE_VERSION = "v1";
+
+function internalUrl(service: string, params: Record<string, string> = {}) {
+  const search = new URLSearchParams({ service, ...params });
+  return `/api/hazards?${search.toString()}`;
+}
+
+function readCached<T>(key: string, maxAgeMs: number): T | null {
+  try {
+    const stored = localStorage.getItem(`hazardlens:${CLIENT_CACHE_VERSION}:${key}`);
+    if (!stored) return null;
+    const cached = JSON.parse(stored) as { savedAt: string; payload: T };
+    if (Date.now() - new Date(cached.savedAt).getTime() > maxAgeMs) return null;
+    if (cached.payload && !Array.isArray(cached.payload) && typeof cached.payload === "object") {
+      return {
+        ...cached.payload,
+        hazardlens: {
+          source: "local-cache",
+          servedAt: cached.savedAt,
+          message: "The network is unavailable. Showing the last successful result stored on this device.",
+        },
+      } as T;
+    }
+    return cached.payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeCached<T>(key: string, payload: T) {
+  try {
+    const status = payload && !Array.isArray(payload) && typeof payload === "object"
+      ? (payload as { hazardlens?: DataStatus }).hazardlens
+      : undefined;
+    if (status?.source === "demo") return;
+    localStorage.setItem(`hazardlens:${CLIENT_CACHE_VERSION}:${key}`, JSON.stringify({ savedAt: new Date().toISOString(), payload }));
+  } catch {
+    return;
+  }
+}
+
+async function fetchJson<T>(
+  url: string,
+  cacheKey?: string,
+  maxCacheAgeMs = 6 * 60 * 60 * 1000,
+  timeoutMs = 14000,
+): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
@@ -164,68 +225,51 @@ async function fetchJson<T>(url: string, timeoutMs = 14000): Promise<T> {
       throw new Error(payload.reason || "The data service returned an error.");
     }
 
+    if (cacheKey) writeCached(cacheKey, payload);
     return payload;
+  } catch (error) {
+    const cached = cacheKey ? readCached<T>(cacheKey, maxCacheAgeMs) : null;
+    if (cached) return cached;
+    throw error;
   } finally {
     window.clearTimeout(timeoutId);
   }
 }
 
 export async function searchPhilippineLocations(query: string) {
-  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
-  url.searchParams.set("name", query);
-  url.searchParams.set("count", "8");
-  url.searchParams.set("language", "en");
-  url.searchParams.set("format", "json");
-  url.searchParams.set("countryCode", "PH");
-
-  const data = await fetchJson<{ results?: LocationOption[] }>(url.toString());
+  const data = await fetchJson<{ results?: LocationOption[] }>(
+    internalUrl("geocode", { q: query }),
+  );
   return data.results ?? [];
 }
 
 export async function getForecast(location: LocationOption) {
-  const url = new URL("https://api.open-meteo.com/v1/forecast");
-  url.searchParams.set("latitude", String(location.latitude));
-  url.searchParams.set("longitude", String(location.longitude));
-  url.searchParams.set(
-    "current",
-    "precipitation,rain,showers,weather_code",
+  const coordinates = {
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+  };
+  return fetchJson<ForecastResponse>(
+    internalUrl("forecast", coordinates),
+    `forecast:${location.latitude.toFixed(4)}:${location.longitude.toFixed(4)}`,
   );
-  url.searchParams.set(
-    "hourly",
-    "precipitation_probability,precipitation,rain,showers",
-  );
-  url.searchParams.set("past_days", "1");
-  url.searchParams.set("forecast_days", "7");
-  url.searchParams.set("timezone", "Asia/Manila");
-
-  return fetchJson<ForecastResponse>(url.toString());
 }
 
 export async function getFloodForecast(location: LocationOption) {
-  const url = new URL("https://flood-api.open-meteo.com/v1/flood");
-  url.searchParams.set("latitude", String(location.latitude));
-  url.searchParams.set("longitude", String(location.longitude));
-  url.searchParams.set(
-    "daily",
-    [
-      "river_discharge",
-      "river_discharge_mean",
-      "river_discharge_median",
-      "river_discharge_max",
-      "river_discharge_p25",
-      "river_discharge_p75",
-    ].join(","),
+  const coordinates = {
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+  };
+  return fetchJson<FloodResponse>(
+    internalUrl("flood", coordinates),
+    `flood:${location.latitude.toFixed(4)}:${location.longitude.toFixed(4)}`,
   );
-  url.searchParams.set("past_days", "7");
-  url.searchParams.set("forecast_days", "7");
-  url.searchParams.set("timezone", "Asia/Manila");
-
-  return fetchJson<FloodResponse>(url.toString());
 }
 
 export async function getRadarFrames() {
   return fetchJson<RadarResponse>(
-    "https://api.rainviewer.com/public/weather-maps.json",
+    internalUrl("radar"),
+    "radar",
+    90 * 60 * 1000,
   );
 }
 
@@ -249,25 +293,17 @@ export async function getNationalSnapshot() {
   const latitudes = NATIONAL_SAMPLE_LOCATIONS.map((item) => item.latitude).join(",");
   const longitudes = NATIONAL_SAMPLE_LOCATIONS.map((item) => item.longitude).join(",");
 
-  const forecastUrl = new URL("https://api.open-meteo.com/v1/forecast");
-  forecastUrl.searchParams.set("latitude", latitudes);
-  forecastUrl.searchParams.set("longitude", longitudes);
-  forecastUrl.searchParams.set("current", "precipitation");
-  forecastUrl.searchParams.set("hourly", "precipitation");
-  forecastUrl.searchParams.set("forecast_hours", "24");
-  forecastUrl.searchParams.set("timezone", "Asia/Manila");
-
-  const floodUrl = new URL("https://flood-api.open-meteo.com/v1/flood");
-  floodUrl.searchParams.set("latitude", latitudes);
-  floodUrl.searchParams.set("longitude", longitudes);
-  floodUrl.searchParams.set("daily", "river_discharge");
-  floodUrl.searchParams.set("past_days", "1");
-  floodUrl.searchParams.set("forecast_days", "2");
-  floodUrl.searchParams.set("timezone", "Asia/Manila");
+  const coordinates = { latitude: latitudes, longitude: longitudes, mode: "snapshot" };
 
   const [forecastResult, floodResult] = await Promise.allSettled([
-    fetchJson<SnapshotForecastResponse | SnapshotForecastResponse[]>(forecastUrl.toString()),
-    fetchJson<SnapshotFloodResponse | SnapshotFloodResponse[]>(floodUrl.toString()),
+    fetchJson<SnapshotForecastResponse | SnapshotForecastResponse[]>(
+      internalUrl("forecast", coordinates),
+      "national-snapshot:forecast",
+    ),
+    fetchJson<SnapshotFloodResponse | SnapshotFloodResponse[]>(
+      internalUrl("flood", coordinates),
+      "national-snapshot:flood",
+    ),
   ]);
 
   if (forecastResult.status === "rejected" && floodResult.status === "rejected") {
@@ -355,13 +391,11 @@ function eventPoint(feature: EonetFeature) {
 }
 
 export async function getTrackedEvents() {
-  const url = new URL("https://eonet.gsfc.nasa.gov/api/v3/events/geojson");
-  url.searchParams.set("category", "severeStorms,floods");
-  url.searchParams.set("status", "open");
-  url.searchParams.set("days", "45");
-  url.searchParams.set("limit", "100");
-
-  const payload = await fetchJson<{ features?: EonetFeature[] }>(url.toString());
+  const payload = await fetchJson<{ features?: EonetFeature[] }>(
+    internalUrl("events"),
+    "tracked-events",
+    24 * 60 * 60 * 1000,
+  );
   const events = new Map<string, TrackedEvent>();
 
   for (const feature of payload.features ?? []) {
@@ -566,7 +600,7 @@ export function buildAnalysis(
     );
   }
   if (!reasons.length) {
-    reasons.push("The available APIs did not provide enough values to explain a potential level.");
+    reasons.push("Current observations are delayed. Try again shortly or select a saved location.");
   }
 
   return {
@@ -608,7 +642,7 @@ export function formatMetric(
   unit: string,
   maximumFractionDigits = 1,
 ) {
-  if (!isNumber(value)) return "Data unavailable";
+  if (!isNumber(value)) return "Not reported";
   return `${value.toLocaleString("en-PH", { maximumFractionDigits })}${unit ? ` ${unit}` : ""}`;
 }
 
